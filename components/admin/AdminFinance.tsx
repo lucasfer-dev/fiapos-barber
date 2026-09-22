@@ -1,0 +1,13 @@
+'use client';
+import {useMemo,useState} from 'react';
+import {Banknote,CalendarDays,CircleDollarSign,TrendingUp} from 'lucide-react';
+import {useAdminStore} from './useAdminStore';
+const money=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+export function AdminFinance(){
+ const {appointments,employees}=useAdminStore();const current=new Date().toISOString().slice(0,7);const [month,setMonth]=useState(current);
+ const completed=appointments.filter(a=>a.status==='completed'&&a.date.startsWith(month));const revenue=completed.reduce((n,a)=>n+a.total,0);const pending=appointments.filter(a=>['pending','confirmed'].includes(a.status)&&a.date.startsWith(month)).reduce((n,a)=>n+a.total,0);const avg=completed.length?revenue/completed.length:0;
+ const byEmployee=useMemo(()=>employees.map(e=>{const list=completed.filter(a=>a.barberId===e.id);const gross=list.reduce((n,a)=>n+a.total,0);return {...e,count:list.length,gross,commissionValue:gross*e.commission/100}}).sort((a,b)=>b.gross-a.gross),[employees,completed]);
+ return <><div className="admin-heading"><div><span className="eyebrow dark">Financeiro</span><h1>Faturamento</h1><p>Visão simples do que entrou, do que está previsto e do desempenho por profissional.</p></div><label className="month-picker"><CalendarDays size={16}/><input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label></div>
+ <div className="admin-kpis finance"><div className="admin-kpi"><span className="admin-kpi-icon"><CircleDollarSign/></span><div><small>Faturamento realizado</small><strong>{money(revenue)}</strong><em>{completed.length} atendimentos concluídos</em></div></div><div className="admin-kpi"><span className="admin-kpi-icon"><TrendingUp/></span><div><small>Receita prevista</small><strong>{money(pending)}</strong><em>Reservas pendentes + confirmadas</em></div></div><div className="admin-kpi"><span className="admin-kpi-icon"><Banknote/></span><div><small>Ticket médio</small><strong>{money(avg)}</strong><em>Por atendimento concluído</em></div></div></div>
+ <section className="admin-card"><div className="admin-card-head"><div><small>DESEMPENHO</small><h2>Faturamento por funcionário</h2></div></div><div className="finance-list">{byEmployee.map(e=><div key={e.id}><div className="finance-person"><span className="admin-avatar">{e.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</span><div><strong>{e.name}</strong><small>{e.count} atendimentos • comissão {e.commission}%</small></div></div><div className="finance-values"><span><small>Bruto</small><strong>{money(e.gross)}</strong></span><span><small>Comissão estimada</small><strong>{money(e.commissionValue)}</strong></span></div></div>)}</div></section></>
+}
