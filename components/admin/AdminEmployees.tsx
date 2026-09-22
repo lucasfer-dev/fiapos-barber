@@ -1,0 +1,15 @@
+'use client';
+import {useState} from 'react';
+import {Plus,Trash2,UserRoundCheck} from 'lucide-react';
+import {useAdminStore} from './useAdminStore';
+import type {Employee} from '@/lib/admin-store';
+
+export function AdminEmployees(){
+ const {employees,setEmployees}=useAdminStore(); const [show,setShow]=useState(false); const [form,setForm]=useState({name:'',role:'Barbeiro',phone:'',specialties:'',commission:40});
+ function create(){if(!form.name)return;const e:Employee={id:`barber-${Date.now()}`,name:form.name,role:form.role,phone:form.phone,specialties:form.specialties.split(',').map(x=>x.trim()).filter(Boolean),commission:Number(form.commission),active:true};setEmployees([...employees,e]);setForm({name:'',role:'Barbeiro',phone:'',specialties:'',commission:40});setShow(false)}
+ return <>
+  <div className="admin-heading"><div><span className="eyebrow dark">Equipe</span><h1>Funcionários</h1><p>Cadastre profissionais, comissões, especialidades e disponibilidade operacional.</p></div><button className="btn btn-primary" onClick={()=>setShow(true)}><Plus size={17}/> Adicionar funcionário</button></div>
+  <div className="employee-grid">{employees.map(e=><article className="employee-card" key={e.id}><div className="employee-card-top"><span className="employee-avatar"><UserRoundCheck/></span><div><strong>{e.name}</strong><small>{e.role}</small></div><button className={`employee-switch ${e.active?'on':''}`} onClick={()=>setEmployees(employees.map(x=>x.id===e.id?{...x,active:!x.active}:x))}><span/></button></div><div className="employee-info"><div><span>Telefone</span><strong>{e.phone||'—'}</strong></div><div><span>Comissão</span><strong>{e.commission}%</strong></div><div className="full"><span>Especialidades</span><strong>{e.specialties.join(' • ')||'Não informadas'}</strong></div></div><button className="employee-delete" onClick={()=>setEmployees(employees.filter(x=>x.id!==e.id))}><Trash2 size={15}/> Excluir funcionário</button></article>)}</div>
+  {show&&<div className="admin-modal-backdrop" onMouseDown={()=>setShow(false)}><div className="admin-modal" onMouseDown={e=>e.stopPropagation()}><div className="admin-card-head"><div><small>EQUIPE</small><h2>Novo funcionário</h2></div><button className="icon-button" onClick={()=>setShow(false)}>×</button></div><div className="admin-form-grid"><label><span>Nome</span><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label><span>Cargo</span><input value={form.role} onChange={e=>setForm({...form,role:e.target.value})}/></label><label><span>Telefone</span><input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></label><label><span>Comissão (%)</span><input type="number" min="0" max="100" value={form.commission} onChange={e=>setForm({...form,commission:Number(e.target.value)})}/></label><label className="full"><span>Especialidades (separadas por vírgula)</span><input value={form.specialties} onChange={e=>setForm({...form,specialties:e.target.value})} placeholder="Degradê, barba, social"/></label></div><button className="btn btn-primary btn-block" onClick={create}>Cadastrar funcionário</button></div></div>}
+ </>
+}
