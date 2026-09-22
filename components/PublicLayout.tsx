@@ -1,0 +1,2 @@
+import {Header} from './Header'; import {Footer} from './Footer'; import Link from 'next/link'; import {CalendarDays} from 'lucide-react';
+export function PublicLayout({children}:{children:React.ReactNode}){return <><Header/>{children}<Footer/><Link className="btn btn-primary mobile-cta" href="/agendar"><CalendarDays size={18}/> AGENDAR HORÁRIO</Link></>}
