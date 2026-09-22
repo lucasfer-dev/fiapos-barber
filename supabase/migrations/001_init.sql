@@ -1,0 +1,30 @@
+create extension if not exists pgcrypto;
+create type public.app_role as enum ('admin','barber','client');
+create type public.appointment_status as enum ('pending','confirmed','completed','cancelled');
+create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, role public.app_role not null default 'client', full_name text, phone text, created_at timestamptz not null default now());
+create table public.barbers (id uuid primary key default gen_random_uuid(), profile_id uuid unique references public.profiles(id) on delete set null, name text not null, bio text, photo_url text, specialties text[] not null default '{}', active boolean not null default true, created_at timestamptz not null default now());
+create table public.services (id uuid primary key default gen_random_uuid(), name text not null, description text, price numeric(10,2) not null check(price>=0), duration_minutes int not null check(duration_minutes>0), category text, image_url text, active boolean not null default true, created_at timestamptz not null default now());
+create table public.barber_services (barber_id uuid references public.barbers(id) on delete cascade, service_id uuid references public.services(id) on delete cascade, primary key(barber_id,service_id));
+create table public.business_hours (weekday int primary key check(weekday between 0 and 6), is_open boolean not null default false, opens_at time, closes_at time, buffer_minutes int not null default 0);
+create table public.barber_schedules (id uuid primary key default gen_random_uuid(), barber_id uuid not null references public.barbers(id) on delete cascade, weekday int not null check(weekday between 0 and 6), is_working boolean not null default true, starts_at time, ends_at time, break_start time, break_end time);
+create table public.clients (id uuid primary key default gen_random_uuid(), profile_id uuid unique references public.profiles(id) on delete set null, name text not null, phone text not null, email text, created_at timestamptz not null default now());
+create table public.haircut_catalog (id uuid primary key default gen_random_uuid(), name text not null, category text not null, description text, image_url text, sort_order int not null default 0, active boolean not null default true, created_at timestamptz not null default now());
+create table public.blocked_times (id uuid primary key default gen_random_uuid(), barber_id uuid references public.barbers(id) on delete cascade, starts_at timestamptz not null, ends_at timestamptz not null, reason text, created_at timestamptz not null default now(), check(ends_at>starts_at));
+create table public.appointments (id uuid primary key default gen_random_uuid(), client_id uuid not null references public.clients(id), barber_id uuid not null references public.barbers(id), service_id uuid not null references public.services(id), starts_at timestamptz not null, ends_at timestamptz not null, price numeric(10,2) not null, status public.appointment_status not null default 'pending', notes text, haircut_reference_id uuid references public.haircut_catalog(id), booking_code text unique not null default ('FIAPOS-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,8))), created_at timestamptz not null default now(), updated_at timestamptz not null default now(), check(ends_at>starts_at));
+create table public.appointment_status_history (id uuid primary key default gen_random_uuid(), appointment_id uuid not null references public.appointments(id) on delete cascade, old_status public.appointment_status, new_status public.appointment_status not null, changed_by uuid references public.profiles(id), created_at timestamptz not null default now());
+create table public.settings (key text primary key, value jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+
+alter table public.profiles enable row level security; alter table public.barbers enable row level security; alter table public.services enable row level security; alter table public.clients enable row level security; alter table public.haircut_catalog enable row level security; alter table public.blocked_times enable row level security; alter table public.appointments enable row level security;
+create or replace function public.is_admin() returns boolean language sql stable security definer set search_path=public as $$ select exists(select 1 from public.profiles p where p.id=auth.uid() and p.role='admin'); $$;
+create policy "public read active barbers" on public.barbers for select using(active=true or public.is_admin());
+create policy "public read active services" on public.services for select using(active=true or public.is_admin());
+create policy "public read active catalog" on public.haircut_catalog for select using(active=true or public.is_admin());
+create policy "admin manage barbers" on public.barbers for all using(public.is_admin()) with check(public.is_admin());
+create policy "admin manage services" on public.services for all using(public.is_admin()) with check(public.is_admin());
+create policy "admin manage catalog" on public.haircut_catalog for all using(public.is_admin()) with check(public.is_admin());
+create policy "admin manage blocks" on public.blocked_times for all using(public.is_admin()) with check(public.is_admin());
+create policy "admin manage appointments" on public.appointments for all using(public.is_admin()) with check(public.is_admin());
+create policy "client read own appointments" on public.appointments for select using(exists(select 1 from public.clients c where c.id=client_id and c.profile_id=auth.uid()));
+
+create extension if not exists btree_gist;
+alter table public.appointments add constraint no_barber_overlap exclude using gist (barber_id with =, tstzrange(starts_at,ends_at,'[)') with &&) where (status in ('pending','confirmed'));
